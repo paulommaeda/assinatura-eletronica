@@ -1,0 +1,6 @@
+{
+  "requires": "6.3",
+  "requires_php": "8.1",
+  "tested": "7.1.4",
+  "notes": "Dossiê com declarações por sessão no painel e na API, relatório de importação por linha e opção de registro do IP e navegador. Preserva os contratos e os PDFs já emitidos."
+}
