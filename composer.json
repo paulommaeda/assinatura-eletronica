@@ -1,0 +1,17 @@
+{
+  "name": "paulommaeda/assinatura-eletronica",
+  "description": "Contratos educacionais com assinatura eletrônica para WordPress.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=8.1",
+    "dompdf/dompdf": "^3.1.6",
+    "setasign/fpdi": "^2.6",
+    "setasign/fpdf": "^1.9"
+  },
+  "config": {
+    "platform": {"php": "8.1.0"},
+    "sort-packages": true,
+    "autoloader-suffix": "EduSignPdf"
+  }
+}
