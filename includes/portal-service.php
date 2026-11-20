@@ -20,31 +20,37 @@ final class PortalService {
     }
     public static function identify(string $uuid,array $data): array {
         self::limit('identify-ip',Store::ip(),80,900);
-        $message = 'Confira o link, o CPF cadastrado e o prazo de acesso.';
+        $message = 'Confira o CPF e a data de nascimento do responsável e use o link enviado pela escola dentro do prazo. Se os dados estiverem corretos, entre em contato com a escola.';
         $c = Store::contract($uuid);
         $token = $data['invite'] ?? '';
         Store::require(self::available($c) && is_string($token) && hash_equals(Contracts::invite($c),$token),$message,403);
         self::limit('identify-contract',$uuid,12,900);
-        try { $cpf = Store::cpf($data['cpf'] ?? ''); } catch (Problem $e) { throw new Problem($message,403); }
-        return Store::tx(function () use ($uuid,$token,$cpf,$message) {
+        try {
+            $cpf = Store::cpf($data['cpf'] ?? '');
+            $birthDate = Store::birthDate($data['birth_date'] ?? '');
+        } catch (Problem $e) { throw new Problem($message,403); }
+        return Store::tx(function () use ($uuid,$token,$cpf,$birthDate,$message) {
             $c = Store::contract($uuid,true);
             Store::require(self::available($c) && hash_equals(Contracts::invite($c),$token)
-                && hash_equals($c->guardian_cpf_hash,Store::mac('cpf',$uuid,$cpf)),$message,403);
+                && hash_equals($c->guardian_cpf_hash,Store::mac('cpf',$uuid,$cpf))
+                && isset($c->guardian_birth_date_hash)
+                && hash_equals($c->guardian_birth_date_hash,Store::mac('birth-date',$uuid,$birthDate)),$message,403);
             $session = Store::token();
-            $sid = Store::insert('sessions',['contract_id'=>$c->id,'token_hash'=>hash('sha256',$session),
+            $sid = Store::insert('sessions',['contract_id'=>$c->id,'token_hash'=>Store::mac('cpf-birth-date-session',$uuid,$session),
                 'created_at'=>Store::now(),'expires_at'=>Store::after(HOUR_IN_SECONDS)]);
-            Audit::add($c,'IDENTITY_CONFIRMED','guardian',['session'=>$sid]);
+            Audit::add($c,'IDENTITY_CONFIRMED','guardian',['session'=>$sid,'birth_date_verified'=>true]);
             return ['session'=>$session,'expires_in'=>HOUR_IN_SECONDS,'status'=>$c->status];
         });
     }
     private static function authorized(string $uuid,string $token,callable $operation) {
         global $wpdb;
-        Store::require(preg_match('/^[a-f0-9]{64}$/D',$token) === 1,'Confirme o CPF para continuar.',401);
+        Store::require(preg_match('/^[a-f0-9]{64}$/D',$token) === 1,'Confirme o CPF e a data de nascimento do responsável para continuar.',401);
         return Store::tx(function () use ($wpdb,$uuid,$token,$operation) {
             $c = Store::contract($uuid,true);
             $s = $wpdb->get_row($wpdb->prepare('SELECT * FROM '.Store::t('sessions').' WHERE contract_id=%d AND token_hash=%s AND expires_at>%s',
-                $c->id,hash('sha256',$token),Store::now()));
-            Store::require($s && self::available($c),'O acesso expirou. Abra o link do e-mail e confirme seu CPF.',401);
+                $c->id,Store::mac('cpf-birth-date-session',$uuid,$token),Store::now()));
+            Store::require($s && isset($c->guardian_birth_date_hash) && self::available($c),
+                'Abra o link do e-mail e confirme novamente seu CPF e sua data de nascimento.',401);
             return $operation($c,$s);
         });
     }

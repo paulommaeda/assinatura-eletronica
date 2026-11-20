@@ -3,7 +3,7 @@
  * Plugin Name: Assinatura Eletrônica Educacional
  * Plugin URI: https://github.com/paulommaeda/assinatura-eletronica
  * Description: Emita contratos escolares, registre a ciência do responsável e acompanhe a assinatura por código de e-mail.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Requires at least: 6.3
  * Requires PHP: 8.1
  * Author: Paulo Maeda
@@ -13,7 +13,7 @@
 namespace EduSign;
 defined('ABSPATH') || exit;
 
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const FILE = __FILE__;
 const DIR = __DIR__;
 const REPO = 'https://github.com/paulommaeda/assinatura-eletronica';

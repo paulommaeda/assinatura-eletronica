@@ -30,12 +30,12 @@ final class Delivery {
                 do_action('edu_contract_signed',(int)$c->id,Contracts::summary($c));
                 $event = 'HOOK_DELIVERED';
             } elseif ($job->kind === 'receipt' && $status === 'signed' && !$c->archived_at) {
-                $message = "Olá, {$c->guardian_name}.\n\nSua assinatura foi registrada. Para baixar o PDF e o certificado, abra o link e confirme seu CPF.\n\n"
+                $message = "Olá, {$c->guardian_name}.\n\nSua assinatura foi registrada. Para baixar o PDF e o certificado, abra o link e confirme seu CPF e sua data de nascimento.\n\n"
                     .Contracts::link($c)."\n\nProtocolo: {$c->uuid}\nSHA-256 do PDF final: {$c->pdf_hash_sha256}\nAssinado em {$c->signed_at} UTC.\n\n{$c->institution}";
                 $ok = wp_mail($c->guardian_email,'Comprovante de assinatura · '.$c->institution,$message);
                 $event = 'RECEIPT_SENT';
             } elseif ($job->kind === 'invitation' && in_array($status,['sent','viewed'],true) && !$c->archived_at) {
-                $message = "Olá, {$c->guardian_name}.\n\n{$c->institution} disponibilizou um contrato educacional para sua leitura e assinatura. Abra o link individual e confirme o CPF cadastrado.\n\n"
+                $message = "Olá, {$c->guardian_name}.\n\n{$c->institution} disponibilizou um contrato educacional para sua leitura e assinatura. Abra o link individual e confirme seu CPF e sua data de nascimento.\n\n"
                     .Contracts::link($c)."\n\nPrazo: {$c->expires_at} UTC.\nProtocolo: {$c->uuid}\n\n{$c->institution}";
                 $ok = wp_mail($c->guardian_email,'Contrato disponível para assinatura · '.$c->institution,$message);
                 $event = 'INVITATION_SENT';

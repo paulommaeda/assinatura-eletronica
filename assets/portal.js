@@ -123,7 +123,8 @@
   }
   action(el('identify').querySelector('button'),async () => {
     if (!invite) throw new Error('Abra o link completo recebido por e-mail.');
-    const result=await call('identify',{invite,cpf:el('cpf').value}); el('cpf').value='';
+    const result=await call('identify',{invite,cpf:el('cpf').value,birth_date:el('birth-date').value});
+    el('identify').reset();
     session=result.session; cache.set('-session',session); await open();
   });
   action(el('toggle'),async () => { if (format==='pdf') accessible(); else await showPdf(); });

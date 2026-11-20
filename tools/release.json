@@ -2,5 +2,5 @@
   "requires": "6.3",
   "requires_php": "8.1",
   "tested": "7.1.4",
-  "notes": "Dossiê com declarações por sessão no painel e na API, relatório de importação por linha e opção de registro do IP e navegador. Preserva os contratos e os PDFs já emitidos."
+  "notes": "Confirmação do CPF e da data de nascimento do responsável no portal e no comprovante. A emissão individual, o CSV e a API recebem a data. O gestor pode cadastrá-la nos contratos anteriores."
 }

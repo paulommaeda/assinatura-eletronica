@@ -52,7 +52,7 @@ final class Pdf {
             'Contrato'=>$c->title.' · versão '.$c->template_version, 'Protocolo'=>$c->uuid,
             'Aluno / RA'=>$c->student_name.' / '.$c->student_ref, 'Responsável'=>$c->guardian_name,
             'CPF'=>'***.***.***-'.$c->cpf_suffix, 'E-mail cadastrado'=>$c->guardian_email,
-            'Assinatura (UTC)'=>$when, 'Método'=>'Link individual, conferência do CPF e código de uso único por e-mail.',
+            'Assinatura (UTC)'=>$when, 'Método'=>'Link individual, conferência do CPF e da data de nascimento do responsável e código de uso único por e-mail.',
             'Manifestação de vontade'=>PortalService::DECLARATION,
         ];
         foreach ($fields as $key=>$val) { $html .= '<p><strong>'.esc_html($key).'</strong><br>'.esc_html($val).'</p>'; }
@@ -61,7 +61,7 @@ final class Pdf {
             .(int)$a->scroll_percent.'% de avanço informado · '.(int)$a->time_spent_seconds.' s desde a abertura</small></p>'; }
         $html .= '<h2>Eventos anteriores ao fechamento</h2>';
         foreach (Audit::rows((int)$c->id) as $e) {
-            $html .= '<p><small>'.(int)$e->seq.' · '.esc_html($e->created_at).' UTC</small><br>'.esc_html(Audit::label($e->event_type)).'</p>';
+            $html .= '<p><small>'.(int)$e->seq.' · '.esc_html($e->created_at).' UTC</small><br>'.esc_html(Audit::label($e->event_type,$e->payload_json)).'</p>';
         }
         $html .= '<h2>Identificadores de integridade</h2><p>SHA-256 das páginas emitidas<br><small>'.chunk_split($c->issued_hash,32,' ').'</small></p>'
             .'<p>Selo HMAC da trilha anterior ao fechamento<br><small>'.chunk_split($c->audit_head,32,' ').'</small></p>'

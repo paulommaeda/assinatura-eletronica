@@ -4,9 +4,11 @@ defined('ABSPATH') || exit;
 
 final class Contracts {
     public static function snapshotHash(object $c): string {
-        return hash('sha256',Store::json([$c->uuid,(int)$c->template_id,$c->title,(int)$c->template_version,$c->institution,
+        $fields = [$c->uuid,(int)$c->template_id,$c->title,(int)$c->template_version,$c->institution,
             $c->student_ref,$c->student_name,$c->guardian_name,$c->guardian_cpf_hash,$c->cpf_suffix,$c->guardian_email,
-            $c->guardian_phone,$c->rendered_html,$c->clauses_json]));
+            $c->guardian_phone,$c->rendered_html,$c->clauses_json];
+        if (isset($c->guardian_birth_date_hash)) { $fields[] = $c->guardian_birth_date_hash; }
+        return hash('sha256',Store::json($fields));
     }
     public static function issue(array $input): array {
         global $wpdb;
@@ -17,6 +19,7 @@ final class Contracts {
         }
         Store::require((bool)is_email($data['guardian_email']), 'Informe um e-mail válido para o responsável.');
         $cpf = Store::cpf($input['guardian_cpf'] ?? '');
+        $birthDate = array_key_exists('guardian_birth_date',$input) ? Store::birthDate($input['guardian_birth_date']) : null;
         $id = absint($input['template_id'] ?? 0);
         $vars = $input['variables'] ?? [];
         Store::require(is_array($vars) && count($vars) <= 80, 'As variáveis devem ser um objeto com até 80 campos.');
@@ -29,14 +32,22 @@ final class Contracts {
         Store::require(in_array($mode,['draft','send'],true),'Modo de emissão inválido.');
         $digest = Store::mac('issue',$data,$cpf,$id,$vars,$mode);
         $ref = $data['external_ref'];
-        $existing = static function () use ($wpdb,$ref,$digest) {
+        $existing = static function () use ($wpdb,$ref,$digest,$birthDate) {
             if ($ref === '') { return null; }
             $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM '.Store::t('contracts').' WHERE external_ref=%s',$ref));
             if (!$row) { return null; }
             Store::require(hash_equals($row->request_hash,$digest),'Essa referência externa já identifica um contrato com outros dados.',409);
+            if (isset($row->guardian_birth_date_hash)) {
+                Store::require($birthDate !== null,'Informe a data de nascimento do responsável.');
+                Store::require(hash_equals($row->guardian_birth_date_hash,Store::mac('birth-date',$row->uuid,$birthDate)),
+                    'Essa referência externa já identifica um contrato com outros dados.',409);
+            } elseif ($birthDate !== null) {
+                throw new Problem('Este contrato já foi emitido. Cadastre a data de nascimento no detalhe do contrato.',409);
+            }
             return self::summary($row) + ['created'=>false];
         };
         if ($prior = $existing()) { return $prior; }
+        Store::require($birthDate !== null,'Informe a data de nascimento do responsável.');
         $model = Templates::get($id);
         Store::require($model->status === 'active','Escolha a versão vigente do modelo.',409);
         $uuid = wp_generate_uuid4();
@@ -52,6 +63,7 @@ final class Contracts {
         $data['external_ref'] = $ref !== '' ? $ref : null;
         $record = $data + ['uuid'=>$uuid,'request_hash'=>$digest,'template_id'=>$id,'template_version'=>(int)$model->version,'title'=>$model->title,
             'institution'=>$values['instituicao'],'guardian_cpf_hash'=>Store::mac('cpf',$uuid,$cpf),'cpf_suffix'=>substr($cpf,-2),
+            'guardian_birth_date_hash'=>Store::mac('birth-date',$uuid,$birthDate),
             'rendered_html'=>$body,'clauses_json'=>Store::json($clauses),'issued_hash'=>hash('sha256',$bytes),'invite_seed'=>Store::token(),
             'status'=>$mode === 'draft' ? 'draft' : 'sent','created_at'=>Store::now(),'expires_at'=>Store::after(DAY_IN_SECONDS*(int)$settings['valid_days'])];
         try {
@@ -78,6 +90,25 @@ final class Contracts {
         return ['uuid'=>$c->uuid,'id'=>(int)$c->id,'external_ref'=>$c->external_ref,'student_ref'=>$c->student_ref,
             'status'=>$status,'template_id'=>(int)$c->template_id,'template_version'=>(int)$c->template_version,
             'expires_at'=>$c->expires_at,'signed_at'=>$c->signed_at,'pdf_sha256'=>$c->pdf_hash_sha256,'archived_at'=>$c->archived_at];
+    }
+    public static function registerBirthDate(string $uuid, $value): void {
+        global $wpdb;
+        $birthDate = Store::birthDate($value);
+        Store::tx(static function () use ($wpdb,$uuid,$birthDate) {
+            $c = Store::contract($uuid,true);
+            Store::require(!$c->archived_at && in_array(self::effectiveStatus($c),['draft','sent','viewed','signed'],true),
+                'O contrato está encerrado para cadastro da data de nascimento.',409);
+            $hash = Store::mac('birth-date',$uuid,$birthDate);
+            if (isset($c->guardian_birth_date_hash)) {
+                Store::require(hash_equals($c->guardian_birth_date_hash,$hash),'A data de nascimento já foi cadastrada neste contrato.',409);
+                return;
+            }
+            Audit::verify($c);
+            Store::update('contracts',['guardian_birth_date_hash'=>$hash],['id'=>$c->id]);
+            Store::checked($wpdb->delete(Store::t('sessions'),['contract_id'=>$c->id]));
+            $c->guardian_birth_date_hash = $hash;
+            Audit::add($c,'GUARDIAN_BIRTH_DATE_REGISTERED','operator',['snapshot_sha256'=>self::snapshotHash($c)]);
+        });
     }
     public static function effectiveStatus(object $c): string {
         return in_array($c->status,['sent','viewed'],true) && $c->expires_at <= Store::now() ? 'expired' : $c->status;

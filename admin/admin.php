@@ -13,7 +13,8 @@ final class Admin {
     }
     private static function url(array $args=[]): string { return add_query_arg(['page'=>self::PAGE]+$args,admin_url('admin.php')); }
     private static function input(string $key,string $title,string $value='',string $type='text',bool $required=true): void {
-        echo '<label class="es-field"><span>'.esc_html($title).'</span><input type="'.esc_attr($type).'" name="'.esc_attr($key).'" value="'.esc_attr($value).'" '.($required?'required':'').'></label>';
+        $max = $type === 'date' ? ' max="'.esc_attr(wp_date('Y-m-d')).'"' : '';
+        echo '<label class="es-field"><span>'.esc_html($title).'</span><input type="'.esc_attr($type).'" name="'.esc_attr($key).'" value="'.esc_attr($value).'"'.$max.' '.($required?'required':'').'></label>';
     }
     private static function begin(string $op,string $uuid='',bool $file=false): void {
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"'.($file?' enctype="multipart/form-data"':'').'>';
@@ -108,14 +109,22 @@ final class Admin {
             else { $actions['archive']='Arquivar'; }
             foreach ($actions as $op=>$label) { self::begin($op,$c->uuid); self::end($label,false); }
         }
-        echo '</div></div><h2>Entregas e integração</h2><ul>';
+        echo '</div></div>';
+        if (!isset($c->guardian_birth_date_hash) && !$c->archived_at && in_array($status,['draft','sent','viewed','signed'],true)) {
+            echo '<section class="es-card"><h2>Identificação do responsável</h2><p>Para liberar o acesso a este contrato, informe a data de nascimento de '.esc_html($c->guardian_name).' conforme o cadastro da escola.</p>';
+            self::begin('register_birth_date',$c->uuid);
+            self::input('guardian_birth_date','Data de nascimento do responsável','','date');
+            self::end('Cadastrar data de nascimento');
+            echo '</section>';
+        }
+        echo '<h2>Entregas e integração</h2><ul>';
         $jobs = $wpdb->get_results($wpdb->prepare('SELECT kind,state,attempts,due_at FROM '.Store::t('jobs').' WHERE contract_id=%d ORDER BY id DESC LIMIT 15',$c->id));
         $kinds=['invitation'=>'Convite','receipt'=>'Comprovante','hook'=>'Integração com ERP']; $states=['pending'=>'Em fila','running'=>'Em andamento','done'=>'Concluída'];
         foreach ($jobs as $job) { echo '<li>'.esc_html(($kinds[$job->kind]??$job->kind).' · '.($states[$job->state]??$job->state).' · tentativas: '.$job->attempts
             .($job->state==='pending'?' · próxima tentativa (UTC): '.$job->due_at:'')).'</li>'; }
         if (!$jobs) { echo '<li>Nenhuma entrega solicitada.</li>'; }
         echo '</ul><h2>Trilha de auditoria</h2><ol class="es-log">';
-        foreach (Audit::rows((int)$c->id) as $e) { echo '<li><strong>'.esc_html(Audit::label($e->event_type)).'</strong> <small>'.esc_html($e->created_at).' UTC</small></li>'; }
+        foreach (Audit::rows((int)$c->id) as $e) { echo '<li><strong>'.esc_html(Audit::label($e->event_type,$e->payload_json)).'</strong> <small>'.esc_html($e->created_at).' UTC</small></li>'; }
         echo '</ol>';
         if ($c->archived_at && current_user_can('manage_options') && self::disposable($c)) {
             echo '<details class="es-card"><summary>Descarte definitivo após o prazo de guarda</summary><p>O descarte remove os PDFs, os dados pessoais e as evidências deste contrato. Confira as obrigações de guarda e eventuais litígios antes de prosseguir.</p>';
@@ -151,11 +160,12 @@ final class Admin {
         foreach ($models as $m) { echo '<option value="'.(int)$m->id.'">'.esc_html($m->title.' · v'.$m->version).'</option>'; }
         echo '</select></label>';
         if ($batch) {
-            echo '<p>Use CSV em UTF-8 separado por ponto e vírgula, com até 25 linhas de dados por envio. A referência externa identifica cada contrato em reimportações.</p><p><code>external_ref;student_ref;student_name;guardian_name;guardian_cpf;guardian_email;guardian_phone</code></p><p>Inclua variáveis do modelo em colunas adicionais, como <code>curso</code> e <code>ano_letivo</code>.</p><label class="es-field"><span>Arquivo CSV</span><input type="file" name="csv" accept=".csv,text/csv" required></label>';
+            echo '<p>Use CSV em UTF-8 separado por ponto e vírgula, com até 25 linhas de dados por envio. A referência externa identifica cada contrato em reimportações.</p><p><code>external_ref;student_ref;student_name;guardian_name;guardian_cpf;guardian_birth_date;guardian_email;guardian_phone</code></p><p>Em <code>guardian_birth_date</code>, informe a data de nascimento do responsável em DD/MM/AAAA ou AAAA-MM-DD. Inclua variáveis do modelo em colunas adicionais, como <code>curso</code> e <code>ano_letivo</code>.</p><label class="es-field"><span>Arquivo CSV</span><input type="file" name="csv" accept=".csv,text/csv" required></label>';
         } else {
             echo '<div class="es-grid">';
-            foreach (['student_ref'=>'RA / referência do aluno','student_name'=>'Nome do aluno','guardian_name'=>'Nome do responsável','guardian_cpf'=>'CPF do responsável','guardian_email'=>'E-mail do responsável','guardian_phone'=>'Telefone (opcional)','external_ref'=>'Referência externa (opcional)'] as $key=>$label) {
-                self::input($key,$label,'',$key==='guardian_email'?'email':'text',!in_array($key,['guardian_phone','external_ref'],true));
+            $types = ['guardian_birth_date'=>'date','guardian_email'=>'email'];
+            foreach (['student_ref'=>'RA / referência do aluno','student_name'=>'Nome do aluno','guardian_name'=>'Nome do responsável','guardian_cpf'=>'CPF do responsável','guardian_birth_date'=>'Data de nascimento do responsável','guardian_email'=>'E-mail do responsável','guardian_phone'=>'Telefone (opcional)','external_ref'=>'Referência externa (opcional)'] as $key=>$label) {
+                self::input($key,$label,'',$types[$key] ?? 'text',!in_array($key,['guardian_phone','external_ref'],true));
             }
             echo '</div><label class="es-field"><span>Variáveis adicionais · uma por linha, no formato nome=valor</span><textarea name="custom" rows="3" placeholder="curso=Ensino Fundamental"></textarea></label>';
         }
@@ -180,7 +190,7 @@ final class Admin {
         $fp=fopen($file['tmp_name'],'rb');
         $head=fgetcsv($fp,0,';','"',''); Store::require(is_array($head),'Cabeçalho CSV ausente.');
         $head[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$head[0]);
-        $required=['external_ref','student_ref','student_name','guardian_name','guardian_cpf','guardian_email'];
+        $required=['external_ref','student_ref','student_name','guardian_name','guardian_cpf','guardian_birth_date','guardian_email'];
         Store::require(!array_diff($required,$head) && count(array_unique($head))===count($head),'Revise o cabeçalho e as colunas obrigatórias do CSV.');
         $rows=[];
         while (($row=fgetcsv($fp,0,';','"',''))!==false) {
@@ -230,6 +240,9 @@ final class Admin {
                     $r=Contracts::issue($in); Delivery::run($r['id']); $args=['uuid'=>$r['uuid']];
                     $message=$r['created']?'Contrato emitido.':'Esta referência já foi emitida.'; break;
                 case 'batch': [$message,$level]=self::batch($in); break;
+                case 'register_birth_date':
+                    Contracts::registerBirthDate($uuid,$in['guardian_birth_date'] ?? '');
+                    $args=['uuid'=>$uuid]; $message='Data de nascimento do responsável cadastrada.'; break;
                 case 'settings':
                     Store::require(current_user_can('manage_options'),'Acesso restrito.',403);
                     $valid=filter_var($in['valid_days'],FILTER_VALIDATE_INT); $ret=filter_var($in['retention_days'],FILTER_VALIDATE_INT);

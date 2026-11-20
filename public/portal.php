@@ -23,8 +23,9 @@ final class Portal {
           <ol class="steps" aria-label="Etapas"><li aria-current="step">Identificação</li><li>Leitura</li><li>Assinatura</li></ol>
           <p id="notice" role="status" aria-live="polite" hidden></p>
           <noscript>Ative o JavaScript para abrir o contrato e assinar.</noscript>
-          <section id="identity" class="panel narrow"><h1>Confirme sua identidade</h1><p>Informe o CPF do responsável cadastrado pela escola para acessar o contrato.</p>
+          <section id="identity" class="panel narrow"><h1>Confirme sua identidade</h1><p>Informe o CPF e a data de nascimento do responsável pelo contrato, conforme o cadastro da escola.</p>
             <form id="identify"><label for="cpf">CPF do responsável</label><input id="cpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required>
+            <label for="birth-date">Data de nascimento do responsável</label><input id="birth-date" type="date" autocomplete="bday" max="<?php echo esc_attr(wp_date('Y-m-d')); ?>" required>
             <button>Acessar contrato</button></form></section>
           <section id="reading" class="panel" hidden><p id="school" class="institution"></p><h1 id="title">Leitura do contrato</h1>
             <div class="reader-tools"><button type="button" id="toggle" class="secondary">Usar texto acessível</button><button type="button" id="download-issued" class="secondary">Baixar PDF para leitura</button></div>

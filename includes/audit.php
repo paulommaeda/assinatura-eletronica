@@ -3,9 +3,13 @@ namespace EduSign;
 defined('ABSPATH') || exit;
 
 final class Audit {
-    public static function label(string $event): string {
+    public static function label(string $event, string $payload = '{}'): string {
+        if ($event === 'IDENTITY_CONFIRMED' && !empty(json_decode($payload,true)['birth_date_verified'])) {
+            return 'Link, CPF e data de nascimento conferidos';
+        }
         $names = ['CONTRACT_ISSUED'=>'Contrato emitido','CONTRACT_SENT'=>'Envio solicitado','INVITATION_SENT'=>'Convite aceito pelo serviço de e-mail',
-            'IDENTITY_CONFIRMED'=>'Link e CPF conferidos','CONTRACT_VIEWED'=>'Contrato aberto para leitura','CLAUSES_ACKNOWLEDGED'=>'Ciências registradas',
+            'IDENTITY_CONFIRMED'=>'Link e CPF conferidos','GUARDIAN_BIRTH_DATE_REGISTERED'=>'Data de nascimento cadastrada pela escola',
+            'CONTRACT_VIEWED'=>'Contrato aberto para leitura','CLAUSES_ACKNOWLEDGED'=>'Ciências registradas',
             'OTP_REQUESTED'=>'Código de assinatura solicitado','OTP_SENT'=>'Código aceito pelo serviço de e-mail','OTP_FAILED'=>'Falha no envio do código',
             'OTP_REJECTED'=>'Tentativa de código inválido','OTP_VERIFIED'=>'Código de uso único validado','SIGNATURE_CONFIRMED'=>'Vontade de assinar confirmada',
             'CONTRACT_SIGNED'=>'PDF final selado','RECEIPT_SENT'=>'Comprovante aceito pelo serviço de e-mail','HOOK_DELIVERED'=>'Integração executada',
@@ -62,7 +66,7 @@ final class Audit {
         $ackGroups = [];
         $acks = $wpdb->get_results($wpdb->prepare('SELECT session_id,clause_key,label,acknowledged_at,scroll_percent,time_spent_seconds FROM '.Store::t('acknowledgments').' WHERE contract_id=%d ORDER BY id',$c->id));
         foreach ($acks as $a) { $ackGroups[$a->session_id][] = $a; }
-        $prev = ''; $seq = 0; $signed = null; $issued = null; $signingSession = null;
+        $prev = ''; $seq = 0; $signed = null; $issued = null; $snapshot = null; $signingSession = null;
         $rows = self::rows((int)$c->id);
         foreach ($rows as $e) {
             Store::require(++$seq === (int)$e->seq && $prev === $e->prev_hash && hash_equals(self::digest($c->uuid,$e),$e->event_hash),
@@ -75,14 +79,20 @@ final class Audit {
                     'Divergência nas declarações de ciência.',409);
                 unset($ackGroups[$sid]);
             }
-            if ($e->event_type === 'CONTRACT_ISSUED') { $issued = json_decode($e->payload_json,true); }
+            if ($e->event_type === 'CONTRACT_ISSUED') {
+                $issued = json_decode($e->payload_json,true);
+                $snapshot = $issued['snapshot_sha256'] ?? null;
+            }
+            if ($e->event_type === 'GUARDIAN_BIRTH_DATE_REGISTERED') {
+                $snapshot = json_decode($e->payload_json,true)['snapshot_sha256'] ?? null;
+            }
             if ($e->event_type === 'SIGNATURE_CONFIRMED') {
                 $signingSession = (int)json_decode($e->payload_json, true)['session'];
             }
             if ($e->event_type === 'CONTRACT_SIGNED') { $signed = json_decode($e->payload_json,true); }
         }
         Store::require(!$ackGroups && $seq === (int)$c->event_count && $prev === $c->audit_head && ($issued['pdf_sha256'] ?? '') === $c->issued_hash
-            && ($issued['snapshot_sha256'] ?? '') === Contracts::snapshotHash($c),'Divergência no fechamento da trilha.',409);
+            && $snapshot === Contracts::snapshotHash($c),'Divergência no fechamento da trilha.',409);
         Pdf::read($c,'issued');
         if ($c->status === 'signed' || $signed !== null) {
             Store::require($c->status === 'signed' && ($signed['pdf_sha256'] ?? '') === $c->pdf_hash_sha256 && ($signed['signed_at'] ?? '') === $c->signed_at,'Divergência no selo da assinatura.',409);

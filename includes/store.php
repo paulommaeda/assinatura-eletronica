@@ -77,6 +77,18 @@ final class Store {
         }
         return $cpf;
     }
+    public static function birthDate($value): string {
+        $message = 'Informe uma data de nascimento válida para o responsável (DD/MM/AAAA ou AAAA-MM-DD).';
+        self::require(is_string($value), $message);
+        $date = trim($value);
+        if (preg_match('~^([0-9]{2})/([0-9]{2})/([0-9]{4})$~D', $date, $parts)) {
+            $date = $parts[3].'-'.$parts[2].'-'.$parts[1];
+        }
+        self::require(preg_match('/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/D', $date, $parts) === 1
+            && checkdate((int)$parts[2], (int)$parts[3], (int)$parts[1])
+            && $date <= wp_date('Y-m-d'), $message);
+        return $date;
+    }
     public static function settings(): array {
         return wp_parse_args((array)get_option('edu_sign_settings', []), [
             'institution' => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),

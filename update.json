@@ -1,8 +1,8 @@
 {
-  "version": "1.0.1",
-  "sha256": "34ee1185f8a9dd58baf1b56396d04be694ab1bf8fe9da012e6fe2fc7fd546782",
+  "version": "1.0.2",
+  "sha256": "5fd94f4bb38a2eba09db3f108f473d195d3e4d952e046cef1300924f503094be",
   "requires": "6.3",
   "requires_php": "8.1",
   "tested": "7.1.4",
-  "notes": "Dossiê com declarações por sessão no painel e na API, relatório de importação por linha e opção de registro do IP e navegador. Preserva os contratos e os PDFs já emitidos."
+  "notes": "Confirmação do CPF e da data de nascimento do responsável no portal e no comprovante. A emissão individual, o CSV e a API recebem a data. O gestor pode cadastrá-la nos contratos anteriores."
 }
