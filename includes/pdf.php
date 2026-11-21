@@ -8,6 +8,41 @@ use setasign\Fpdi\Fpdi;
 use setasign\Fpdi\PdfParser\StreamReader;
 
 final class Pdf {
+    public static function decodeOriginal(array $document): string {
+        $encoded = $document['pdf_base64'] ?? null;
+        $max = 8 * MB_IN_BYTES;
+        Store::require(is_string($encoded) && $encoded !== '', 'Informe o PDF em document.pdf_base64.');
+        Store::require(strlen($encoded) <= 4 * intdiv($max + 2,3), 'O PDF do ERP excede 8 MiB.',413);
+        $bytes = base64_decode($encoded,true);
+        Store::require(is_string($bytes) && str_starts_with($bytes,'%PDF-'), 'O conteúdo enviado deve ser um PDF em Base64.');
+        Store::require(strlen($bytes) <= $max, 'O PDF do ERP excede 8 MiB.',413);
+        if (array_key_exists('sha256',$document)) {
+            Store::require(is_string($document['sha256']) && hash_equals(hash('sha256',$bytes),strtolower($document['sha256'])),
+                'O SHA-256 informado diverge do PDF recebido.');
+        }
+        return $bytes;
+    }
+    public static function checkImportable(string $bytes): void {
+        require_once DIR . '/vendor/autoload.php';
+        try {
+            $copy = new Fpdi();
+            self::appendPages($copy,$bytes);
+            // Resolve the page resources now, before the invitation can be sent.
+            $copy->Output('S');
+        } catch (\Exception $error) {
+            throw new Problem('Envie um PDF íntegro, sem senha e compatível com a importação de páginas.',422);
+        }
+    }
+    private static function appendPages(Fpdi $out,string $bytes): void {
+        $pages = $out->setSourceFile(StreamReader::createByString($bytes));
+        Store::require($pages > 0,'O PDF deve conter ao menos uma página.');
+        for ($i=1; $i <= $pages; $i++) {
+            $page = $out->importPage($i);
+            $size = $out->getTemplateSize($page);
+            $out->AddPage($size['orientation'],[$size['width'],$size['height']]);
+            $out->useTemplate($page);
+        }
+    }
     public static function render(string $html): string {
         require_once DIR . '/vendor/autoload.php';
         $opt = new Options();
@@ -49,7 +84,7 @@ final class Pdf {
         $issued = self::read($c,'issued');
         $html = '<h1>Certificado de trilha de auditoria</h1><p>'.esc_html($c->institution).'</p>';
         $fields = [
-            'Contrato'=>$c->title.' · versão '.$c->template_version, 'Protocolo'=>$c->uuid,
+            'Contrato'=>Contracts::isErpPdf($c) ? $c->title.' · PDF recebido do ERP' : $c->title.' · versão '.$c->template_version, 'Protocolo'=>$c->uuid,
             'Aluno / RA'=>$c->student_name.' / '.$c->student_ref, 'Responsável'=>$c->guardian_name,
             'CPF'=>'***.***.***-'.$c->cpf_suffix, 'E-mail cadastrado'=>$c->guardian_email,
             'Assinatura (UTC)'=>$when, 'Método'=>'Link individual, conferência do CPF e da data de nascimento do responsável e código de uso único por e-mail.',
@@ -70,15 +105,8 @@ final class Pdf {
         $out = new Fpdi();
         $out->SetTitle('Contrato educacional - '.$c->uuid);
         $out->SetAutoPageBreak(false);
-        foreach ([$issued,$cert] as $file) {
-            $pages = $out->setSourceFile(StreamReader::createByString($file));
-            for ($i=1; $i <= $pages; $i++) {
-                $page = $out->importPage($i);
-                $size = $out->getTemplateSize($page);
-                $out->AddPage($size['orientation'],[$size['width'],$size['height']]);
-                $out->useTemplate($page);
-            }
-        }
+        self::appendPages($out,$issued);
+        self::appendPages($out,$cert);
         return $out->Output('S');
     }
 }

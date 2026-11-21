@@ -62,10 +62,18 @@
     check();
   }
   function accessible() {
+    if (!data.html) {
+      generation++; rendered = false; reached = false; check();
+      el('pagebar').hidden = true; el('pages').replaceChildren();
+      el('progress').textContent = 'Baixe o PDF para leitura. Para registrar a ciência, reabra o convite em um navegador que exiba as páginas.';
+      message('Não foi possível exibir o PDF do contrato.', true);
+      return;
+    }
     generation++; rendered = true; format = 'text';
     el('pages').hidden = true; el('text').hidden = false; el('pagebar').hidden = true;
     el('toggle').textContent = 'Ver páginas do PDF'; el('reader').scrollTop = 0;
     requestAnimationFrame(progress);
+    message('O contrato está aberto em texto acessível. O PDF integral também está disponível para download.');
   }
   async function renderPage() {
     const seq = ++generation; rendered = false;
@@ -94,7 +102,7 @@
         pdf = await lib.getDocument({data:new Uint8Array(pdfBytes.slice(0)),isEvalSupported:false,useSystemFonts:true}).promise;
       }
       if (format === 'pdf') await renderPage();
-    } catch { accessible(); message('O contrato está aberto em texto acessível. O PDF integral também está disponível para download.'); }
+    } catch { accessible(); }
   }
   async function download(kind) {
     const bytes = kind === 'issued' && pdfBytes ? pdfBytes : await call('document/' + kind,undefined,true);
@@ -113,6 +121,7 @@
     if (data.acknowledged) { stage('signing'); return; }
     el('school').textContent=data.institution; el('title').textContent=data.title;
     el('text').innerHTML=data.html; // Frozen server-side allowlist, with escaped variable values.
+    el('toggle').hidden = !data.html;
     el('clauses').replaceChildren();
     Object.entries(data.clauses).forEach(([value,text]) => {
       const label=document.createElement('label'), input=document.createElement('input'), span=document.createElement('span');

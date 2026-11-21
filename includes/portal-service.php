@@ -91,7 +91,7 @@ final class PortalService {
             Store::require(($data['issued_sha256'] ?? null) === $c->issued_hash && ($data['scroll_percent'] ?? null) === 100,
                 'Percorra o contrato integral e confirme a versão apresentada.');
             $format = $data['format'] ?? '';
-            Store::require(in_array($format,['pdf','text'],true),'Formato de leitura inválido.');
+            Store::require($format === 'pdf' || ($format === 'text' && $c->rendered_html !== ''),'Formato de leitura inválido.');
             if (!self::acks($c,$s)) {
                 $elapsed = max(0,time()-strtotime($s->viewed_at.' UTC'));
                 foreach ($clauses as $key=>$label) {
@@ -170,6 +170,7 @@ final class PortalService {
             Audit::add($c,'CONTRACT_SIGNED','guardian',['pdf_sha256'=>$hash,'issued_sha256'=>$c->issued_hash,'signed_at'=>$when]);
             Delivery::queue((int)$c->id,'receipt');
             Delivery::queue((int)$c->id,'hook');
+            ErpWebhook::queue($c);
             return Contracts::summary($c);
         });
         Delivery::run($result['id']);

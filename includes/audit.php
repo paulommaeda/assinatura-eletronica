@@ -13,6 +13,7 @@ final class Audit {
             'OTP_REQUESTED'=>'Código de assinatura solicitado','OTP_SENT'=>'Código aceito pelo serviço de e-mail','OTP_FAILED'=>'Falha no envio do código',
             'OTP_REJECTED'=>'Tentativa de código inválido','OTP_VERIFIED'=>'Código de uso único validado','SIGNATURE_CONFIRMED'=>'Vontade de assinar confirmada',
             'CONTRACT_SIGNED'=>'PDF final selado','RECEIPT_SENT'=>'Comprovante aceito pelo serviço de e-mail','HOOK_DELIVERED'=>'Integração executada',
+            'ERP_WEBHOOK_DELIVERED'=>'ERP confirmou o recebimento da situação final',
             'DELIVERY_FAILED'=>'Falha de entrega','CONTRACT_CANCELLED'=>'Contrato cancelado','CONTRACT_EXPIRED'=>'Prazo de assinatura encerrado',
             'CONTRACT_ARCHIVED'=>'Contrato arquivado','INVITATION_RENEWED'=>'Novo convite solicitado','RECEIPT_RENEWED'=>'Novo comprovante solicitado'];
         return $names[$event] ?? $event;

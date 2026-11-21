@@ -30,11 +30,23 @@ final class Contracts {
         ksort($vars);
         $mode = $input['mode'] ?? 'send';
         Store::require(in_array($mode,['draft','send'],true),'Modo de emissão inválido.');
-        $digest = Store::mac('issue',$data,$cpf,$id,$vars,$mode);
         $ref = $data['external_ref'];
-        $existing = static function () use ($wpdb,$ref,$digest,$birthDate) {
+        $external = array_key_exists('document',$input);
+        if ($external) {
+            $doc = $input['document'];
+            Store::require(is_array($doc) && !array_key_exists('template_id',$input) && !$vars,
+                'Envie o PDF do ERP em document ou escolha um modelo para emissão.');
+            Store::require($ref !== '','Informe a referência externa do contrato do ERP.');
+            $title = Store::text($doc['title'] ?? '', 'título do contrato');
+            $institution = Store::text($doc['institution'] ?? '', 'instituição do contrato',180,false);
+            $bytes = Pdf::decodeOriginal($doc);
+            $digest = Store::mac('issue-erp-pdf-v1',$data,$cpf,$title,$institution,hash('sha256',$bytes),$mode);
+        } else {
+            $digest = Store::mac('issue',$data,$cpf,$id,$vars,$mode);
+        }
+        $existing = static function () use ($ref,$digest,$birthDate) {
             if ($ref === '') { return null; }
-            $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM '.Store::t('contracts').' WHERE external_ref=%s',$ref));
+            $row = self::byReference($ref);
             if (!$row) { return null; }
             Store::require(hash_equals($row->request_hash,$digest),'Essa referência externa já identifica um contrato com outros dados.',409);
             if (isset($row->guardian_birth_date_hash)) {
@@ -48,28 +60,40 @@ final class Contracts {
         };
         if ($prior = $existing()) { return $prior; }
         Store::require($birthDate !== null,'Informe a data de nascimento do responsável.');
-        $model = Templates::get($id);
-        Store::require($model->status === 'active','Escolha a versão vigente do modelo.',409);
         $uuid = wp_generate_uuid4();
         $settings = Store::settings();
-        $values = ['instituicao'=>$settings['institution'],'aluno'=>$data['student_name'],'ra'=>$data['student_ref'],
-            'responsavel'=>$data['guardian_name'],'cpf_mascarado'=>'***.***.***-'.substr($cpf,-2),'email'=>$data['guardian_email'],
-            'telefone'=>$data['guardian_phone'],'data_emissao'=>wp_date('d/m/Y'),'protocolo'=>$uuid] + $vars;
-        $body = '<p><small>'.esc_html($values['instituicao']).'</small></p><h1>'.esc_html($model->title).'</h1>'
-            .'<p><small>Versão '.(int)$model->version.' · '.esc_html($uuid).'</small></p>'.Templates::render($model->html_content,$values);
         $clauses = ['leitura'=>'Declaro que tive acesso ao contrato integral e li seu conteúdo.'];
-        foreach (json_decode($model->required_clauses_json,true) as $key=>$label) { $clauses[$key] = Templates::render($label,$values,false); }
-        $bytes = Pdf::render($body);
+        if ($external) {
+            Pdf::checkImportable($bytes);
+            $version = 0;
+            $body = '';
+            if ($institution === '') { $institution = $settings['institution']; }
+        } else {
+            $model = Templates::get($id);
+            Store::require($model->status === 'active','Escolha a versão vigente do modelo.',409);
+            $title = $model->title;
+            $version = (int)$model->version;
+            $institution = $settings['institution'];
+            $values = ['instituicao'=>$institution,'aluno'=>$data['student_name'],'ra'=>$data['student_ref'],
+                'responsavel'=>$data['guardian_name'],'cpf_mascarado'=>'***.***.***-'.substr($cpf,-2),'email'=>$data['guardian_email'],
+                'telefone'=>$data['guardian_phone'],'data_emissao'=>wp_date('d/m/Y'),'protocolo'=>$uuid] + $vars;
+            $body = '<p><small>'.esc_html($institution).'</small></p><h1>'.esc_html($title).'</h1>'
+                .'<p><small>Versão '.$version.' · '.esc_html($uuid).'</small></p>'.Templates::render($model->html_content,$values);
+            foreach (json_decode($model->required_clauses_json,true) as $key=>$label) { $clauses[$key] = Templates::render($label,$values,false); }
+            $bytes = Pdf::render($body);
+        }
         $data['external_ref'] = $ref !== '' ? $ref : null;
-        $record = $data + ['uuid'=>$uuid,'request_hash'=>$digest,'template_id'=>$id,'template_version'=>(int)$model->version,'title'=>$model->title,
-            'institution'=>$values['instituicao'],'guardian_cpf_hash'=>Store::mac('cpf',$uuid,$cpf),'cpf_suffix'=>substr($cpf,-2),
+        $record = $data + ['uuid'=>$uuid,'request_hash'=>$digest,'template_id'=>$id,'template_version'=>$version,'title'=>$title,
+            'institution'=>$institution,'guardian_cpf_hash'=>Store::mac('cpf',$uuid,$cpf),'cpf_suffix'=>substr($cpf,-2),
             'guardian_birth_date_hash'=>Store::mac('birth-date',$uuid,$birthDate),
             'rendered_html'=>$body,'clauses_json'=>Store::json($clauses),'issued_hash'=>hash('sha256',$bytes),'invite_seed'=>Store::token(),
             'status'=>$mode === 'draft' ? 'draft' : 'sent','created_at'=>Store::now(),'expires_at'=>Store::after(DAY_IN_SECONDS*(int)$settings['valid_days'])];
         try {
             return Store::tx(function () use ($wpdb,$id,$record,$bytes,$mode) {
-                $current = $wpdb->get_var($wpdb->prepare('SELECT status FROM '.Store::t('templates').' WHERE id=%d FOR UPDATE',$id));
-                Store::require($current === 'active','O modelo foi revisado durante a emissão. Atualize a página.',409);
+                if ($id) {
+                    $current = $wpdb->get_var($wpdb->prepare('SELECT status FROM '.Store::t('templates').' WHERE id=%d FOR UPDATE',$id));
+                    Store::require($current === 'active','O modelo foi revisado durante a emissão. Atualize a página.',409);
+                }
                 $cid = Store::insert('contracts',$record);
                 $c = Store::contract($record['uuid'],true);
                 Pdf::save($cid,'issued',$bytes);
@@ -87,9 +111,18 @@ final class Contracts {
     }
     public static function summary(object $c): array {
         $status = self::effectiveStatus($c);
+        $external = self::isErpPdf($c);
         return ['uuid'=>$c->uuid,'id'=>(int)$c->id,'external_ref'=>$c->external_ref,'student_ref'=>$c->student_ref,
-            'status'=>$status,'template_id'=>(int)$c->template_id,'template_version'=>(int)$c->template_version,
+            'status'=>$status,'is_signed'=>$status === 'signed','source'=>$external ? 'erp_pdf' : 'template','issued_sha256'=>$c->issued_hash,
+            'template_id'=>$external ? null : (int)$c->template_id,'template_version'=>$external ? null : (int)$c->template_version,
             'expires_at'=>$c->expires_at,'signed_at'=>$c->signed_at,'pdf_sha256'=>$c->pdf_hash_sha256,'archived_at'=>$c->archived_at];
+    }
+    public static function isErpPdf(object $contract): bool {
+        return (int)$contract->template_id === 0;
+    }
+    public static function byReference(string $reference): ?object {
+        global $wpdb;
+        return $wpdb->get_row($wpdb->prepare('SELECT * FROM '.Store::t('contracts').' WHERE external_ref=%s',$reference));
     }
     public static function registerBirthDate(string $uuid, $value): void {
         global $wpdb;
@@ -148,6 +181,10 @@ final class Contracts {
             Store::update('contracts',$fields,['id'=>$c->id]);
             Store::checked($wpdb->delete(Store::t('sessions'),['contract_id'=>$c->id]));
             Audit::add($c,$event,$automatic ? 'system' : 'operator');
+            // Archiving may persist an elapsed deadline before hourly maintenance sees it.
+            if (isset($fields['status']) && $c->status !== $fields['status'] && in_array($fields['status'],['expired','cancelled'],true)) {
+                ErpWebhook::queue($c);
+            }
         });
     }
     public static function maintenance(): void {

@@ -2,7 +2,7 @@
 
 Plugin WordPress para a escola emitir contratos de prestação de serviços educacionais, acompanhar o aceite pelo responsável e entregar uma cópia verificável. A versão distribuída já inclui o gerador de PDF e o leitor de páginas.
 
-[Baixar o ZIP instalável da versão 1.0.2](https://raw.githubusercontent.com/paulommaeda/assinatura-eletronica/main/dist/assinatura-eletronica-1.0.2.zip)
+[Baixar o ZIP instalável da versão 1.1.0](https://raw.githubusercontent.com/paulommaeda/assinatura-eletronica/main/dist/assinatura-eletronica-1.1.0.zip)
 
 ## Instalação
 
@@ -60,12 +60,15 @@ A implementação registra assinatura eletrônica com OTP por e-mail e selagem d
 
 ## Integração com ERP
 
+A partir da versão 1.1.0, envie o PDF gerado pelo ERP Educacional, acompanhe a assinatura por protocolo ou referência externa e receba o resultado por webhook. O pacote inclui o [guia de integração com exemplos de emissão, consulta e validação do retorno](INTEGRACAO-ERP.md).
+
 Use a base /wp-json/edu-sign/v1 e uma conta dedicada com o papel **Gestor de contratos**. Autentique via HTTPS com uma senha de aplicativo do WordPress. Para o painel autenticado por cookie, a REST API do WordPress exige o nonce wp_rest em X-WP-Nonce. A permissão verificada é manage_edu_contracts.
 
 | Método | Rota | Resultado |
 | --- | --- | --- |
 | GET | /templates | IDs e versões dos modelos vigentes |
 | POST | /contracts | Emite um contrato. Retorna 201 para novo, 200 para repetido e 409 para referência conflitante |
+| GET | /contracts?external_ref={referência} | Recupera um contrato pela chave do ERP |
 | GET | /contracts/{uuid} | Situação, vencimento, data de assinatura e hash final |
 | GET | /contracts/{uuid}/document/issued | PDF integral da emissão |
 | GET | /contracts/{uuid}/document/signed | PDF assinado |

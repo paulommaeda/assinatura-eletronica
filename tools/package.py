@@ -56,7 +56,7 @@ def build():
     version = re.search(r"^\s*\* Version: (\d+\.\d+\.\d+)$", header, re.M).group(1)
     if f"const VERSION = '{version}';" not in header:
         raise SystemExit("A versão do cabeçalho e a constante VERSION devem coincidir.")
-    files = [ROOT / name for name in (f"{SLUG}.php", "LICENSE", "README.md", "composer.json", "composer.lock")]
+    files = [ROOT / name for name in (f"{SLUG}.php", "LICENSE", "README.md", "INTEGRACAO-ERP.md", "composer.json", "composer.lock")]
     for folder in ("includes", "admin", "public", "assets", "licenses", "vendor"):
         for path in (ROOT / folder).rglob("*"):
             if path.is_file() and (folder != "vendor" or include_vendor(path)):

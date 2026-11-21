@@ -93,6 +93,7 @@ final class Store {
         return wp_parse_args((array)get_option('edu_sign_settings', []), [
             'institution' => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
             'valid_days' => 30, 'retention_days' => 0, 'record_connection' => false,
+            'erp_webhook_url' => '', 'erp_webhook_secret' => '',
         ]);
     }
     public static function agent(): string {

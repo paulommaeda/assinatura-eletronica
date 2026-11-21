@@ -93,7 +93,8 @@ final class Admin {
         global $wpdb;
         $status = Contracts::effectiveStatus($c);
         echo '<p><a href="'.esc_url(self::url()).'">← Voltar aos contratos</a></p><h2>'.esc_html($c->title).'</h2><div class="es-card"><dl>';
-        $fields = ['Protocolo'=>$c->uuid,'Situação'=>self::STATES[$status].($c->archived_at?' · Arquivado':''),'Versão do modelo'=>$c->template_version,
+        $fields = ['Protocolo'=>$c->uuid,'Situação'=>self::STATES[$status].($c->archived_at?' · Arquivado':''),
+            'Origem do documento'=>Contracts::isErpPdf($c) ? 'PDF recebido do ERP' : 'Modelo local · versão '.$c->template_version,
             'Aluno / RA'=>$c->student_name.' / '.$c->student_ref,'Responsável'=>$c->guardian_name.' · ***.***.***-'.$c->cpf_suffix,
             'E-mail'=>$c->guardian_email,'Referência externa'=>$c->external_ref,'Prazo (UTC)'=>$c->expires_at,'Assinatura (UTC)'=>$c->signed_at,'SHA-256 final'=>$c->pdf_hash_sha256];
         foreach ($fields as $label=>$v) { if ($v !== null && $v !== '') { echo '<dt>'.esc_html($label).'</dt><dd>'.esc_html((string)$v).'</dd>'; } }
@@ -119,7 +120,7 @@ final class Admin {
         }
         echo '<h2>Entregas e integração</h2><ul>';
         $jobs = $wpdb->get_results($wpdb->prepare('SELECT kind,state,attempts,due_at FROM '.Store::t('jobs').' WHERE contract_id=%d ORDER BY id DESC LIMIT 15',$c->id));
-        $kinds=['invitation'=>'Convite','receipt'=>'Comprovante','hook'=>'Integração com ERP']; $states=['pending'=>'Em fila','running'=>'Em andamento','done'=>'Concluída'];
+        $kinds=['invitation'=>'Convite','receipt'=>'Comprovante','hook'=>'Ação local de assinatura','erp_webhook'=>'Retorno ao ERP']; $states=['pending'=>'Em fila','running'=>'Em andamento','done'=>'Concluída'];
         foreach ($jobs as $job) { echo '<li>'.esc_html(($kinds[$job->kind]??$job->kind).' · '.($states[$job->state]??$job->state).' · tentativas: '.$job->attempts
             .($job->state==='pending'?' · próxima tentativa (UTC): '.$job->due_at:'')).'</li>'; }
         if (!$jobs) { echo '<li>Nenhuma entrega solicitada.</li>'; }
@@ -182,6 +183,10 @@ final class Admin {
         echo '<h3>Trilha de auditoria</h3><label><input type="checkbox" name="record_connection" value="1" '.checked((bool)$s['record_connection'],true,false).'> Incluir o IP da conexão e a identificação do navegador nos novos eventos de usuários.</label>';
         echo '<p>O padrão usa identificadores pseudonimizados. Com esta opção, os dados de conexão também ficam legíveis no dossiê acessível aos gestores. Em hospedagens com proxy, o IP pode ser o do proxy.</p>';
         echo '<p>O site usa <code>'.(defined('EDU_SIGN_KEY')?'EDU_SIGN_KEY':'wp_salt(auth)').'</code> para selar a trilha. Preserve a chave nos backups para poder conferir assinaturas antigas.</p>';
+        echo '<h3>Retorno ao ERP Educacional</h3><p>Para contratos recebidos em PDF, o ERP pode receber um aviso quando houver assinatura, cancelamento ou vencimento.</p>';
+        self::input('erp_webhook_url','URL HTTPS de retorno do ERP',$s['erp_webhook_url'],'url',false);
+        echo '<label class="es-field"><span>Segredo compartilhado com o ERP</span><input type="password" name="erp_webhook_secret" autocomplete="new-password" minlength="32" maxlength="256"></label>';
+        if ($s['erp_webhook_secret'] !== '') { echo '<p>Já existe um segredo salvo. Preencha para trocá-lo.</p>'; }
         self::end('Salvar configurações'); echo '</section>';
     }
     private static function batch(array $in): array {
@@ -248,7 +253,7 @@ final class Admin {
                     $valid=filter_var($in['valid_days'],FILTER_VALIDATE_INT); $ret=filter_var($in['retention_days'],FILTER_VALIDATE_INT);
                     Store::require($valid>=1 && $valid<=365 && $ret!==false && $ret>=0 && $ret<=36500,'Revise os prazos informados.');
                     update_option('edu_sign_settings',['institution'=>Store::text($in['institution'],'instituição'),'valid_days'=>$valid,'retention_days'=>$ret,
-                        'record_connection'=>($in['record_connection'] ?? '') === '1'],false);
+                        'record_connection'=>($in['record_connection'] ?? '') === '1'] + ErpWebhook::configuration($in,Store::settings()),false);
                     break;
                 case 'purge':
                     Store::require(current_user_can('manage_options') && hash_equals($uuid,(string)($in['confirm_uuid']??'')),'Confirmação de descarte inválida.',403);

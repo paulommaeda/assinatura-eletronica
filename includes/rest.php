@@ -8,6 +8,12 @@ final class Rest {
     public static function register(): void {
         $admin = static fn()=>current_user_can(CAP);
         self::route('/templates','GET',$admin,static fn()=>Templates::active());
+        self::route('/contracts','GET',$admin,static function ($params) {
+            $reference = Store::text($params['external_ref'] ?? '', 'referência externa',160);
+            $contract = Contracts::byReference($reference);
+            Store::require((bool)$contract,'Contrato indisponível.',404);
+            return Contracts::summary($contract);
+        });
         self::route('/contracts','POST',$admin,static function ($params,$input) {
             $result = Contracts::issue($input);
             Delivery::run($result['id']);
@@ -50,7 +56,7 @@ final class Rest {
                     Store::https();
                     $data = $r->get_json_params();
                     Store::require($data === null || is_array($data),'Envie um objeto JSON.');
-                    return $handler($r->get_url_params(),$data ?? [],$r->get_header('x_edu_session') ?? '');
+                    return $handler($r->get_url_params() + $r->get_query_params(),$data ?? [],$r->get_header('x_edu_session') ?? '');
                 } catch (Problem $e) { return new \WP_Error('edu_sign_request',$e->getMessage(),['status'=>$e->getCode()]); }
                 catch (\Throwable $e) { return new \WP_Error('edu_sign_error','Não foi possível concluir a operação. Confira o ambiente e tente novamente.',['status'=>500]); }
             }]);

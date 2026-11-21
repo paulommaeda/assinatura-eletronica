@@ -10,7 +10,7 @@ final class Delivery {
     public static function run(int $cid,int $limit = 3): void {
         global $wpdb;
         $t = Store::t('jobs');
-        $where = $cid ? $wpdb->prepare(' AND contract_id=%d',$cid) : '';
+        $where = $cid ? $wpdb->prepare(" AND contract_id=%d AND kind<>'erp_webhook'",$cid) : '';
         $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM $t WHERE state IN ('pending','running') AND due_at<=%s $where ORDER BY id LIMIT %d",Store::now(),$limit));
         foreach ($ids as $id) { self::deliver((int)$id); }
     }
@@ -26,7 +26,10 @@ final class Delivery {
         $event = ''; $ok = true;
         try {
             $status = Contracts::effectiveStatus($c);
-            if ($job->kind === 'hook' && $status === 'signed') {
+            if ($job->kind === 'erp_webhook') {
+                $ok = ErpWebhook::deliver($c);
+                $event = 'ERP_WEBHOOK_DELIVERED';
+            } elseif ($job->kind === 'hook' && $status === 'signed') {
                 do_action('edu_contract_signed',(int)$c->id,Contracts::summary($c));
                 $event = 'HOOK_DELIVERED';
             } elseif ($job->kind === 'receipt' && $status === 'signed' && !$c->archived_at) {
