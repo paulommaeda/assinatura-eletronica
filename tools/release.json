@@ -2,5 +2,5 @@
   "requires": "6.3",
   "requires_php": "8.1",
   "tested": "7.1.4",
-  "notes": "Recebe o PDF original do ERP Educacional, envia o convite ao responsável e comunica assinatura, cancelamento ou vencimento ao ERP. A consulta aceita protocolo ou referência externa."
+  "notes": "Corrige a exibição do PDF no portal e permite registrar a ciência do arquivo baixado após a conferência do responsável."
 }

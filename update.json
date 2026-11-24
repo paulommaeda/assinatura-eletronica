@@ -1,8 +1,8 @@
 {
-  "version": "1.1.0",
-  "sha256": "4540531a5ea91ef818786d396b2c9a118dbcc5343c9311d6c7ca554e91b88f46",
+  "version": "1.1.1",
+  "sha256": "51add48d9d3f5dc69bdfc152d8e74e1f72b99df1afc493a1269948ae8c00440d",
   "requires": "6.3",
   "requires_php": "8.1",
   "tested": "7.1.4",
-  "notes": "Recebe o PDF original do ERP Educacional, envia o convite ao responsável e comunica assinatura, cancelamento ou vencimento ao ERP. A consulta aceita protocolo ou referência externa."
+  "notes": "Corrige a exibição do PDF no portal e permite registrar a ciência do arquivo baixado após a conferência do responsável."
 }

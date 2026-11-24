@@ -93,7 +93,7 @@ final class Pdf {
         foreach ($fields as $key=>$val) { $html .= '<p><strong>'.esc_html($key).'</strong><br>'.esc_html($val).'</p>'; }
         $html .= '<h2>Ciências registradas</h2>';
         foreach ($acks as $a) { $html .= '<p>'.esc_html($a->label).'<br><small>'.esc_html($a->acknowledged_at).' UTC · '
-            .(int)$a->scroll_percent.'% de avanço informado · '.(int)$a->time_spent_seconds.' s desde a abertura</small></p>'; }
+            .((int)$a->scroll_percent === 0 ? 'Leitura declarada do PDF baixado' : (int)$a->scroll_percent.'% de avanço informado').' · '.(int)$a->time_spent_seconds.' s desde a abertura</small></p>'; }
         $html .= '<h2>Eventos anteriores ao fechamento</h2>';
         foreach (Audit::rows((int)$c->id) as $e) {
             $html .= '<p><small>'.(int)$e->seq.' · '.esc_html($e->created_at).' UTC</small><br>'.esc_html(Audit::label($e->event_type,$e->payload_json)).'</p>';

@@ -3,7 +3,23 @@ namespace EduSign;
 defined('ABSPATH') || exit;
 
 final class Portal {
+    private static function readerModule($name): void {
+        $files = ['viewer'=>'pdf.mjs', 'worker'=>'pdf.worker.mjs'];
+        if (!is_string($name) || !isset($files[$name]) || !in_array($_SERVER['REQUEST_METHOD'] ?? '', ['GET','HEAD'], true)) {
+            status_header(404);
+            exit;
+        }
+        $path = DIR.'/assets/pdfjs/'.$files[$name];
+        if (!is_file($path)) { status_header(404); exit; }
+        header('Content-Type: text/javascript; charset=utf-8');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: public, max-age=86400');
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') { readfile($path); }
+        exit;
+    }
+
     public static function page(): void {
+        if (isset($_GET['edu_sign_reader'])) { self::readerModule($_GET['edu_sign_reader']); }
         if (!isset($_GET['edu_sign'])) { return; }
         $uuid = is_string($_GET['edu_sign']) ? sanitize_text_field(wp_unslash($_GET['edu_sign'])) : '';
         if (!wp_is_uuid($uuid,4)) { wp_die('Link de contrato inválido.','Contrato',['response'=>404]); }
@@ -12,14 +28,15 @@ final class Portal {
         header('Content-Type: text/html; charset=utf-8');
         header('Referrer-Policy: no-referrer'); header('X-Robots-Tag: noindex, nofollow, noarchive');
         header('X-Content-Type-Options: nosniff'); header('X-Frame-Options: DENY');
-        header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' blob:; img-src 'self' data: blob:; font-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+        header("Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' blob:; img-src 'self' data: blob:; font-src 'self' data: blob:; frame-src blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
         $asset = static fn($file)=>plugins_url('assets/'.$file,FILE);
+        $module = static fn($name)=>add_query_arg(['edu_sign_reader'=>$name,'v'=>VERSION],home_url('/','https'));
         $base = rest_url(Rest::NS.'/portal/'.$uuid.'/view','https');
         ?><!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Assinatura de contrato educacional</title><link rel="stylesheet" href="<?php echo esc_url($asset('portal.css')); ?>?v=<?php echo VERSION; ?>">
         <script defer src="<?php echo esc_url($asset('portal.js')); ?>?v=<?php echo VERSION; ?>"></script></head>
         <body><header class="bar"><div class="bar-inner"><span class="doc-mark" aria-hidden="true"></span><strong>Contratos educacionais</strong></div></header>
-        <main id="portal" data-uuid="<?php echo esc_attr($uuid); ?>" data-api="<?php echo esc_url($base); ?>" data-pdfjs="<?php echo esc_url($asset('pdfjs/pdf.mjs')); ?>" data-worker="<?php echo esc_url($asset('pdfjs/pdf.worker.mjs')); ?>">
+        <main id="portal" data-uuid="<?php echo esc_attr($uuid); ?>" data-api="<?php echo esc_url($base); ?>" data-pdfjs="<?php echo esc_url($module('viewer')); ?>" data-worker="<?php echo esc_url($module('worker')); ?>">
           <ol class="steps" aria-label="Etapas"><li aria-current="step">Identificação</li><li>Leitura</li><li>Assinatura</li></ol>
           <p id="notice" role="status" aria-live="polite" hidden></p>
           <noscript>Ative o JavaScript para abrir o contrato e assinar.</noscript>
@@ -29,7 +46,7 @@ final class Portal {
             <button>Acessar contrato</button></form></section>
           <section id="reading" class="panel" hidden><p id="school" class="institution"></p><h1 id="title">Leitura do contrato</h1>
             <div class="reader-tools"><button type="button" id="toggle" class="secondary">Usar texto acessível</button><button type="button" id="download-issued" class="secondary">Baixar PDF para leitura</button></div>
-            <div id="reader" tabindex="0" aria-label="Texto integral do contrato"><div id="pages"></div><article id="text" hidden></article></div>
+            <div id="reader" tabindex="0" aria-label="Texto integral do contrato"><div id="pages"></div><iframe id="native-pdf" title="Prévia do PDF original do contrato" hidden></iframe><article id="text" hidden></article></div>
             <div id="pagebar"><button type="button" class="secondary" id="prev">Anterior</button><span id="page-number" aria-live="polite"></span><button type="button" class="secondary" id="next">Próxima</button></div>
             <p id="progress" class="hint" aria-live="polite"></p>
             <form id="ack-form"><fieldset><legend>Declarações de ciência</legend><div id="clauses"></div></fieldset><button id="ack-btn" disabled>Registrar ciência e continuar</button></form></section>

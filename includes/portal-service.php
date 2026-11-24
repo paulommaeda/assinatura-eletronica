@@ -72,6 +72,9 @@ final class PortalService {
             return Pdf::read($c,$kind);
         });
     }
+    public static function documentReceipt(string $uuid,string $session,string $hash): string {
+        return Store::mac('issued-document-delivery',$uuid,$session,$hash);
+    }
     private static function acks(object $c,object $s): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare('SELECT * FROM '.Store::t('acknowledgments').' WHERE contract_id=%d AND session_id=%d ORDER BY id',$c->id,$s->id));
@@ -81,25 +84,33 @@ final class PortalService {
             'O contrato não está aberto para assinatura.',409);
     }
     public static function acknowledge(string $uuid,string $token,array $data): array {
-        return self::authorized($uuid,$token,function ($c,$s) use ($data) {
+        return self::authorized($uuid,$token,function ($c,$s) use ($data,$token) {
             self::canSign($c,$s);
             $clauses = json_decode($c->clauses_json,true);
             $keys = $data['clauses'] ?? null;
             Store::require(is_array($keys) && array_is_list($keys) && count($keys) === count($clauses)
                 && array_reduce($keys,static fn($ok,$v)=>$ok && is_string($v) && isset($clauses[$v]),true)
                 && count(array_unique($keys)) === count($clauses),'Confirme cada declaração de ciência.');
-            Store::require(($data['issued_sha256'] ?? null) === $c->issued_hash && ($data['scroll_percent'] ?? null) === 100,
-                'Percorra o contrato integral e confirme a versão apresentada.');
+            Store::require(($data['issued_sha256'] ?? null) === $c->issued_hash,'Confira a versão apresentada do contrato.');
             $format = $data['format'] ?? '';
-            Store::require($format === 'pdf' || ($format === 'text' && $c->rendered_html !== ''),'Formato de leitura inválido.');
+            $download = $format === 'download';
+            if ($download) {
+                $receipt = $data['document_receipt'] ?? null;
+                Store::require(Contracts::isErpPdf($c) && is_string($receipt) &&
+                    hash_equals(self::documentReceipt($c->uuid,$token,$c->issued_hash),$receipt),
+                    'Baixe o PDF desta sessão antes de confirmar a leitura.');
+            } else {
+                Store::require($format === 'pdf' || ($format === 'text' && $c->rendered_html !== ''),'Formato de leitura inválido.');
+                Store::require(($data['scroll_percent'] ?? null) === 100,'Percorra o contrato integral e confirme a leitura.');
+            }
             if (!self::acks($c,$s)) {
                 $elapsed = max(0,time()-strtotime($s->viewed_at.' UTC'));
                 foreach ($clauses as $key=>$label) {
                     Store::insert('acknowledgments',['contract_id'=>$c->id,'session_id'=>$s->id,'clause_key'=>$key,'label'=>$label,
-                        'acknowledged_at'=>Store::now(),'scroll_percent'=>100,'time_spent_seconds'=>$elapsed]);
+                        'acknowledged_at'=>Store::now(),'scroll_percent'=>$download ? 0 : 100,'time_spent_seconds'=>$elapsed]);
                 }
                 Audit::add($c,'CLAUSES_ACKNOWLEDGED','guardian',['session'=>(int)$s->id,'clauses'=>$clauses,'issued_sha256'=>$c->issued_hash,
-                    'format'=>$format,'scroll_percent'=>100,'elapsed_seconds'=>$elapsed,'acks_sha256'=>Audit::ackDigest(self::acks($c,$s))]);
+                    'format'=>$format,'scroll_percent'=>$download ? null : 100,'elapsed_seconds'=>$elapsed,'acks_sha256'=>Audit::ackDigest(self::acks($c,$s))]);
             }
             return ['acknowledged'=>true];
         });
