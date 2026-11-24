@@ -14,6 +14,7 @@
     history.replaceState(null, '', location.pathname + location.search);
   }
   let data, pdf, pdfBytes, page = 1, rendered = false, reached = false, format = 'pdf', generation = 0, timer;
+  let receipt = '', downloaded = false, previewUrl = '';
   function message(text, error = false) {
     const box = el('notice'); box.textContent = text; box.classList.toggle('error', error); box.hidden = !text;
   }
@@ -35,12 +36,20 @@
       if (response.status === 401) { session=''; cache.set('-session',''); stage('identity'); }
       throw new Error(problem.message || 'Não foi possível concluir a operação.');
     }
-    return binary ? response.arrayBuffer() : response.json();
+    if (!binary) return response.json();
+    const bytes = await response.arrayBuffer();
+    if (path === 'document/issued') {
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+      const hash = Array.from(digest, n => n.toString(16).padStart(2,'0')).join('');
+      if (hash !== data.issued_sha256) throw new Error('O arquivo recebido diverge do contrato. Reabra o convite e tente novamente.');
+      receipt = response.headers.get('X-Edu-Document-Receipt') || '';
+    }
+    return bytes;
   }
   function action(button, fn) {
     const run = async event => {
       event.preventDefault();
-      if (button.dataset.busy) return;
+      if (button.disabled || button.dataset.busy) return;
       button.dataset.busy = '1'; button.disabled = true; message('');
       try { await fn(); } catch (err) { message(err.message || 'Falha de conexão. Tente novamente.', true); }
       finally { delete button.dataset.busy; button.disabled = false; if (button.id === 'ack-btn') check(); if (button.id === 'send-code' && timer) button.disabled = true; }
@@ -50,7 +59,8 @@
   }
   function check() {
     const list = Array.from(el('clauses').querySelectorAll('input'));
-    el('ack-btn').disabled = !reached || !list.length || list.some(node => !node.checked);
+    const ready = format === 'download' ? downloaded && !!receipt : reached;
+    el('ack-btn').disabled = !!el('ack-btn').dataset.busy || !ready || !list.length || list.some(node => !node.checked);
   }
   function progress() {
     if (!rendered || el('reading').hidden) return;
@@ -61,12 +71,23 @@
       'Percorra o documento até o fim para registrar a ciência.';
     check();
   }
+  function previewOriginal() {
+    if (!pdfBytes || !navigator.pdfViewerEnabled || previewUrl) return;
+    previewUrl = URL.createObjectURL(new Blob([pdfBytes],{type:'application/pdf'}));
+    el('native-pdf').src = previewUrl;
+    el('native-pdf').hidden = false;
+    el('reader').hidden = false;
+  }
   function accessible() {
     if (!data.html) {
-      generation++; rendered = false; reached = false; check();
+      if (el('reading').hidden) return;
+      generation++; rendered = false; reached = false; format = 'download'; check();
       el('pagebar').hidden = true; el('pages').replaceChildren();
-      el('progress').textContent = 'Baixe o PDF para leitura. Para registrar a ciência, reabra o convite em um navegador que exiba as páginas.';
-      message('Não foi possível exibir o PDF do contrato.', true);
+      el('reader').hidden = el('native-pdf').hidden;
+      previewOriginal();
+      el('progress').textContent = downloaded ? 'Após ler o arquivo baixado, confirme as declarações abaixo.' :
+        'Baixe o PDF para leitura. Depois de ler o arquivo, marque as declarações para continuar.';
+      message('O leitor de páginas está indisponível. Use a cópia em PDF para conferir o contrato.');
       return;
     }
     generation++; rendered = true; format = 'text';
@@ -96,9 +117,9 @@
     el('toggle').textContent = 'Usar texto acessível';
     try {
       if (!pdf) {
+        if (!pdfBytes) pdfBytes = await call('document/issued', undefined, true);
         const lib = await import(initial.pdfjs);
         lib.GlobalWorkerOptions.workerSrc = initial.worker;
-        if (!pdfBytes) pdfBytes = await call('document/issued', undefined, true);
         pdf = await lib.getDocument({data:new Uint8Array(pdfBytes.slice(0)),isEvalSupported:false,useSystemFonts:true}).promise;
       }
       if (format === 'pdf') await renderPage();
@@ -110,6 +131,18 @@
     const url = URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
     link.href=url; link.download='contrato-'+initial.uuid+'-'+(kind==='signed'?'assinado':'emitido')+'.pdf';
     document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url),60000);
+    if (kind === 'issued') {
+      pdfBytes = bytes;
+      if (!downloaded && format === 'download') {
+        el('clauses').querySelectorAll('input').forEach(input => { input.checked = false; });
+      }
+      downloaded = true;
+      if (format === 'download') {
+        previewOriginal();
+        el('progress').textContent = 'Após ler o arquivo baixado, confirme as declarações abaixo.';
+        check();
+      }
+    }
   }
   function completed(when, sha) {
     stage('complete'); el('protocol').textContent=initial.uuid; el('signed-at').textContent=when; el('digest').textContent=sha;
@@ -128,7 +161,10 @@
       label.className='check'; input.type='checkbox'; input.value=value; input.required=true;
       input.addEventListener('change',check); span.textContent=text; label.append(input,span); el('clauses').append(label);
     });
-    reached=false; stage('reading'); await showPdf();
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    el('native-pdf').removeAttribute('src'); el('native-pdf').hidden = true; el('reader').hidden = false;
+    pdf = null; pdfBytes = null; receipt = ''; previewUrl = ''; downloaded = false;
+    page = 1; reached = false; stage('reading'); await showPdf();
   }
   action(el('identify').querySelector('button'),async () => {
     if (!invite) throw new Error('Abra o link completo recebido por e-mail.');
@@ -144,7 +180,8 @@
   action(el('download-issued'),()=>download('issued')); action(el('download-signed'),()=>download('signed'));
   action(el('ack-btn'),async () => {
     const clauses=Array.from(el('clauses').querySelectorAll('input:checked'), item=>item.value);
-    await call('ack',{clauses,scroll_percent:reached?100:0,issued_sha256:data.issued_sha256,format}); stage('signing');
+    const evidence = format === 'download' ? {document_receipt:receipt} : {scroll_percent:reached?100:0};
+    await call('ack',{clauses,issued_sha256:data.issued_sha256,format,...evidence}); stage('signing');
   });
   action(el('send-code'),async () => {
     const res=await call('otp',{}); message('Código enviado ao e-mail cadastrado. Confira também a pasta de spam.');

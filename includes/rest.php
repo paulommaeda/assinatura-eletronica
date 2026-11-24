@@ -36,8 +36,14 @@ final class Rest {
         self::route($p.'/ack','POST','__return_true',static fn($params,$data,$session)=>PortalService::acknowledge($params['uuid'],$session,$data));
         self::route($p.'/otp','POST','__return_true',static fn($params,$data,$session)=>PortalService::otp($params['uuid'],$session));
         self::route($p.'/sign','POST','__return_true',static fn($params,$data,$session)=>PortalService::sign($params['uuid'],$session,$data));
-        self::route($p.'/document/(?P<kind>issued|signed)','GET','__return_true',static fn($params,$data,$session)=>self::pdf(
-            PortalService::document($params['uuid'],$session,$params['kind']),$params['uuid'],$params['kind']));
+        self::route($p.'/document/(?P<kind>issued|signed)','GET','__return_true',static function ($params,$data,$session) {
+            $bytes = PortalService::document($params['uuid'],$session,$params['kind']);
+            $response = self::pdf($bytes,$params['uuid'],$params['kind']);
+            if ($params['kind'] === 'issued') {
+                $response->header('X-Edu-Document-Receipt',PortalService::documentReceipt($params['uuid'],$session,hash('sha256',$bytes)));
+            }
+            return $response;
+        });
         add_filter('rest_pre_serve_request',[self::class,'serve'],10,4);
         add_filter('rest_post_dispatch',static function ($res,$server,$r) {
             if (str_starts_with($r->get_route(),'/'.self::NS.'/')) {

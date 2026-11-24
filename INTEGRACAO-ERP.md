@@ -63,6 +63,10 @@ A emissão por PDF dispensa o cadastro de modelo. Para emitir pelo texto de um m
 
 **HTTP 201** cria o contrato e **HTTP 200** recupera o existente em uma repetição idêntica (`created: false`). Guarde `uuid` e `issued_sha256` com o contrato do ERP. A mesma referência com outro PDF ou dados de emissão retorna **409**. Em caso de timeout, consulte a referência antes de repetir. Se precisar repetir a emissão, reutilize o mesmo conteúdo e os mesmos bytes. A geração de outro PDF pode alterar seus metadados e seu hash. O reenvio intencional do convite usa `/resend`.
 
+## Conferência pelo responsável
+
+A versão 1.1.1 exibe o PDF original no portal e entrega os módulos do leitor com o tipo JavaScript. Se o leitor de páginas estiver indisponível, o portal oferece uma prévia quando o navegador permite e mantém o botão **Baixar PDF para leitura**. Após baixar e ler, o responsável marca as declarações e clica em **Registrar ciência e continuar**. O assinador vincula essa confirmação à sessão e ao hash do PDF entregue. A auditoria registra a modalidade de download, sem atribuir um percentual de rolagem ao arquivo externo. A assinatura segue pela confirmação com código de e-mail.
+
 ## Consultar e baixar
 
 Todas as rotas abaixo são relativas a `/wp-json/edu-sign/v1` no site de assinaturas.
