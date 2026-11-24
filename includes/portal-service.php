@@ -61,9 +61,11 @@ final class PortalService {
                 Store::update('sessions',['viewed_at'=>Store::now()],['id'=>$s->id]);
                 Audit::add($c,'CONTRACT_VIEWED','guardian',['session'=>(int)$s->id,'issued_sha256'=>$c->issued_hash]);
             }
+            $at = strrpos($c->guardian_email,'@');
+            $recipient = $at === false ? '' : substr($c->guardian_email,0,1).'•••'.substr($c->guardian_email,$at);
             return ['uuid'=>$c->uuid,'title'=>$c->title,'institution'=>$c->institution,'status'=>$c->status,'name'=>$c->guardian_name,
                 'html'=>$c->rendered_html,'clauses'=>json_decode($c->clauses_json,true),'issued_sha256'=>$c->issued_hash,
-                'acknowledged'=>count(self::acks($c,$s)) > 0,'declaration'=>self::DECLARATION,'signed_sha256'=>$c->pdf_hash_sha256,'signed_at'=>$c->signed_at];
+                'acknowledged'=>count(self::acks($c,$s)) > 0,'code_recipient'=>$recipient,'declaration'=>self::DECLARATION,'signed_sha256'=>$c->pdf_hash_sha256,'signed_at'=>$c->signed_at];
         });
     }
     public static function document(string $uuid,string $token,string $kind): string {
@@ -131,8 +133,8 @@ final class PortalService {
             $t = Store::t('otps');
             $stats = $wpdb->get_row($wpdb->prepare("SELECT COUNT(*) AS total,MAX(created_at) AS latest FROM $t WHERE contract_id=%d AND created_at>%s",
                 $c->id,Store::after(-HOUR_IN_SECONDS)));
-            Store::require((int)$stats->total < 5 && (!$stats->latest || $stats->latest <= Store::after(-60)),
-                'Aguarde para solicitar outro código. O limite é de cinco envios por hora.',429);
+            Store::require((int)$stats->total < 5,'O limite de cinco pedidos de código por hora foi atingido. Tente mais tarde.',429);
+            Store::require(!$stats->latest || $stats->latest <= Store::after(-60),'Aguarde um minuto antes de solicitar outro código.',429);
             Store::checked($wpdb->query($wpdb->prepare("UPDATE $t SET state='revoked' WHERE contract_id=%d AND state IN ('sending','active')",$c->id)));
             $id = Store::insert('otps',['contract_id'=>$c->id,'session_id'=>$s->id,'channel'=>'email','token_hash'=>'','created_at'=>Store::now(),
                 'expires_at'=>Store::after(600),'state'=>'sending']);
@@ -148,7 +150,7 @@ final class PortalService {
             Store::update('otps',['state'=>$sent ? 'active' : 'failed'],['id'=>$id,'state'=>'sending']);
             Audit::add($c,$sent ? 'OTP_SENT' : 'OTP_FAILED','system',['challenge'=>$id,'channel'=>'email']);
         });
-        Store::require((bool)$sent,'O serviço de e-mail não aceitou o envio do código. Tente novamente em um minuto.',503);
+        Store::require((bool)$sent,'O serviço de e-mail do site recusou o envio do código. Tente novamente em um minuto. Se a falha persistir, entre em contato com a escola.',503);
         return ['sent'=>true,'expires_in'=>600,'resend_after'=>60];
     }
     public static function sign(string $uuid,string $token,array $data): array {

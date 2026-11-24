@@ -45,12 +45,13 @@ final class Portal {
             <label for="birth-date">Data de nascimento do responsável</label><input id="birth-date" type="date" autocomplete="bday" max="<?php echo esc_attr(wp_date('Y-m-d')); ?>" required>
             <button>Acessar contrato</button></form></section>
           <section id="reading" class="panel" hidden><p id="school" class="institution"></p><h1 id="title">Leitura do contrato</h1>
+            <p id="reading-instruction" class="reading-instruction"><strong>Role até o final do contrato.</strong> Depois, marque as declarações e clique em <strong>Registrar ciência e continuar</strong> para receber o código por e-mail.</p>
             <div class="reader-tools"><button type="button" id="toggle" class="secondary">Usar texto acessível</button><button type="button" id="download-issued" class="secondary">Baixar PDF para leitura</button></div>
             <div id="reader" tabindex="0" aria-label="Texto integral do contrato"><div id="pages"></div><iframe id="native-pdf" title="Prévia do PDF original do contrato" hidden></iframe><article id="text" hidden></article></div>
-            <div id="pagebar"><button type="button" class="secondary" id="prev">Anterior</button><span id="page-number" aria-live="polite"></span><button type="button" class="secondary" id="next">Próxima</button></div>
+            <p id="reading-end" class="hint" hidden>Fim do contrato</p>
             <p id="progress" class="hint" aria-live="polite"></p>
             <form id="ack-form"><fieldset><legend>Declarações de ciência</legend><div id="clauses"></div></fieldset><button id="ack-btn" disabled>Registrar ciência e continuar</button></form></section>
-          <section id="signing" class="panel narrow" hidden><h1>Assinar contrato</h1><p>Solicite o código no e-mail cadastrado pela escola. Ele vale por dez minutos e pode ser usado uma vez.</p>
+          <section id="signing" class="panel narrow" hidden><h1>Assinar contrato</h1><p>Valide a assinatura com o código de seis dígitos enviado a <strong id="code-recipient">seu e-mail cadastrado</strong>. O código é válido por dez minutos.</p>
             <button type="button" id="send-code" class="secondary">Enviar código por e-mail</button>
             <form id="sign-form"><label for="otp">Código de seis dígitos</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
             <label class="check"><input type="checkbox" id="confirm" required><span id="declaration"></span></label><button>Confirmar assinatura</button></form></section>
