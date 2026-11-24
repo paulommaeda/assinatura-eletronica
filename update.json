@@ -1,8 +1,8 @@
 {
-  "version": "1.1.1",
-  "sha256": "51add48d9d3f5dc69bdfc152d8e74e1f72b99df1afc493a1269948ae8c00440d",
+  "version": "1.1.2",
+  "sha256": "3f4e4b07448d78d601e4f0c3aec3b597b07999e8c21102564b3c682197b2a571",
   "requires": "6.3",
   "requires_php": "8.1",
   "tested": "7.1.4",
-  "notes": "Corrige a exibição do PDF no portal e permite registrar a ciência do arquivo baixado após a conferência do responsável."
+  "notes": "Exibe o contrato inteiro em rolagem contínua e solicita o código por e-mail ao registrar a ciência."
 }

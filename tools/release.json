@@ -2,5 +2,5 @@
   "requires": "6.3",
   "requires_php": "8.1",
   "tested": "7.1.4",
-  "notes": "Corrige a exibição do PDF no portal e permite registrar a ciência do arquivo baixado após a conferência do responsável."
+  "notes": "Exibe o contrato inteiro em rolagem contínua e solicita o código por e-mail ao registrar a ciência."
 }

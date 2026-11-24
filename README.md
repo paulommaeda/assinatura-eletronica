@@ -2,7 +2,7 @@
 
 Plugin WordPress para a escola emitir contratos de prestação de serviços educacionais, acompanhar o aceite pelo responsável e entregar uma cópia verificável. A versão distribuída já inclui o gerador de PDF e o leitor de páginas.
 
-[Baixar o ZIP instalável da versão 1.1.1](https://raw.githubusercontent.com/paulommaeda/assinatura-eletronica/main/dist/assinatura-eletronica-1.1.1.zip)
+[Baixar o ZIP instalável da versão 1.1.2](https://raw.githubusercontent.com/paulommaeda/assinatura-eletronica/main/dist/assinatura-eletronica-1.1.2.zip)
 
 ## Instalação
 
@@ -34,7 +34,7 @@ O painel apresenta os totais de contratos emitidos, registros já processados e 
 
 O link individual chega por e-mail. O responsável confirma o próprio CPF e a própria data de nascimento e acessa o contrato em uma sessão de uma hora. O segredo do convite fica no fragmento da URL. O portal é servido pelo próprio plugin, com recursos locais. Configure o cache/CDN para respeitar no-store e excluir o parâmetro edu_sign e as rotas /edu-sign/v1/.
 
-O portal apresenta as páginas do PDF emitido, com navegação sequencial, download e uma alternativa em texto acessível. Ao chegar ao final, o responsável confirma cada declaração. O servidor vincula a versão, as ciências e o tempo decorrido à sessão. O avanço informado pelo navegador é um indício de navegação. A manifestação de ciência é declarada pela própria pessoa. Nos contratos recebidos como PDF do ERP, se o leitor de páginas estiver indisponível, o responsável pode baixar o original e confirmar a leitura do arquivo. O certificado identifica essa modalidade.
+O portal exibe o PDF inteiro em rolagem contínua e orienta o responsável a chegar ao final do contrato. Ao confirmar as declarações e registrar a ciência, o portal solicita o código por e-mail. Se o serviço de e-mail recusar o envio, a página informa a falha e oferece nova tentativa. O servidor vincula a versão, as ciências e o tempo decorrido à sessão. O avanço informado pelo navegador é um indício de navegação. A manifestação de ciência é declarada pela própria pessoa. Nos contratos recebidos como PDF do ERP, se o leitor de páginas estiver indisponível, o responsável pode baixar o original e confirmar a leitura do arquivo. O certificado identifica essa modalidade.
 
 O código por e-mail dura dez minutos. Cada código admite cinco tentativas. Há intervalo de um minuto entre pedidos e limite de cinco emissões por hora por contrato. O reenvio revoga o código anterior. Para assinar, o responsável informa o código e aceita expressamente a declaração de assinatura. O código é vinculado ao contrato e à sessão. A conclusão tem proteção contra duplo clique e concorrência.
 

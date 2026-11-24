@@ -65,7 +65,7 @@ A emissão por PDF dispensa o cadastro de modelo. Para emitir pelo texto de um m
 
 ## Conferência pelo responsável
 
-A versão 1.1.1 exibe o PDF original no portal e entrega os módulos do leitor com o tipo JavaScript. Se o leitor de páginas estiver indisponível, o portal oferece uma prévia quando o navegador permite e mantém o botão **Baixar PDF para leitura**. Após baixar e ler, o responsável marca as declarações e clica em **Registrar ciência e continuar**. O assinador vincula essa confirmação à sessão e ao hash do PDF entregue. A auditoria registra a modalidade de download, sem atribuir um percentual de rolagem ao arquivo externo. A assinatura segue pela confirmação com código de e-mail.
+A versão 1.1.1 exibe o PDF original no portal e entrega os módulos do leitor com o tipo JavaScript. Se o leitor de páginas estiver indisponível, o portal oferece uma prévia quando o navegador permite e mantém o botão **Baixar PDF para leitura**. Após baixar e ler, o responsável marca as declarações e clica em **Registrar ciência e continuar**. O assinador vincula essa confirmação à sessão e ao hash do PDF entregue. A auditoria registra a modalidade de download, sem atribuir um percentual de rolagem ao arquivo externo. A partir da versão 1.1.2, as páginas do PDF aparecem em rolagem contínua. Após registrar a ciência, o responsável recebe o código por e-mail para confirmar a assinatura. A tela indica quando o serviço de envio recusa o pedido e permite tentar novamente.
 
 ## Consultar e baixar
 
